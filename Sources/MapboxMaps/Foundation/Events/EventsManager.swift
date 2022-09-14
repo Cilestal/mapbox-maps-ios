@@ -1,5 +1,4 @@
 import UIKit
-import MapboxMobileEvents
 @_implementationOnly import MapboxCommon_Private
 
 extension UserDefaults {
@@ -26,6 +25,7 @@ internal final class EventsManager {
     // MMEEventsManager.shared().pauseOrResumeMetricsCollectionIfRequired()
     // when the MGLMapboxMetricsEnabled UserDefaults key changes and duplicate
     // calls to MMEEventsManager.shared().flush() when handling memory warnings.
+    // TODO: can we get rid of it now?
     private static var shared: EventsManager?
 
     internal static func shared(withAccessToken accessToken: String) -> EventsManager {
@@ -34,39 +34,26 @@ internal final class EventsManager {
         return result
     }
 
-    private let mmeEventsManager: MMEEventsManager
+    // We need telemetry service for location and metrics event which will be sent automaticaly if TelemetryService is initialized.
+    private let telemetryService: TelemetryService
     private let coreTelemetry: EventsService
 
     private let metricsEnabledObservation: NSKeyValueObservation
 
     private init(accessToken: String) {
-        let sdkVersion = Bundle.mapboxMapsMetadata.version
-        mmeEventsManager = .shared()
-        mmeEventsManager.initialize(
-            withAccessToken: accessToken,
-            userAgentBase: "mapbox-maps-ios",
-            hostSDKVersion: sdkVersion)
-        mmeEventsManager.skuId = "00"
-
-        let eventsServiceOptions = EventsServiceOptions(token: accessToken, userAgentFragment: Constants.MGLAPIClientUserAgentBase, baseURL: nil)
-        coreTelemetry = EventsService(options: eventsServiceOptions)
+        let eventsServerOptions = EventsServerOptions(token: accessToken, userAgentFragment: Constants.MGLAPIClientUserAgentBase)
+        coreTelemetry = EventsService.getOrCreate(for: eventsServerOptions)
+        telemetryService = TelemetryService.init(options: eventsServerOptions)
 
         UserDefaults.standard.register(defaults: [
             #keyPath(UserDefaults.MGLMapboxMetricsEnabled): true
         ])
 
-        metricsEnabledObservation = UserDefaults.standard.observe(\.MGLMapboxMetricsEnabled, options: [.initial, .new]) { [mmeEventsManager, coreTelemetry] _, change in
+        metricsEnabledObservation = UserDefaults.standard.observe(\.MGLMapboxMetricsEnabled, options: [.initial, .new]) { [] _, change in
             DispatchQueue.main.async {
                 guard let metricsEnabled = change.newValue else { return }
 
-                UserDefaults.mme_configuration().mme_isCollectionEnabled = metricsEnabled
-                mmeEventsManager.pauseOrResumeMetricsCollectionIfRequired()
-
-                if metricsEnabled {
-                    coreTelemetry.resumeEventsCollection()
-                } else {
-                    coreTelemetry.pauseEventsCollection()
-                }
+                TelemetryUtils.setEventsCollectionStateForEnableCollection(metricsEnabled)
             }
         }
     }
