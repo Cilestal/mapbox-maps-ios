@@ -56,7 +56,9 @@ public class PointAnnotationManager: AnnotationManagerInternal {
     internal init(id: String,
                   style: Style,
                   layerPosition: LayerPosition?,
-                  displayLinkCoordinator: DisplayLinkCoordinator) {
+                  displayLinkCoordinator: DisplayLinkCoordinator,
+                  cluster: Bool = false,
+                  clusterRadius: Double = 0.0) {
         self.id = id
         self.sourceId = id
         self.layerId = id
@@ -67,6 +69,9 @@ public class PointAnnotationManager: AnnotationManagerInternal {
             // Add the source with empty `data` property
             var source = GeoJSONSource()
             source.data = .empty
+             source.cluster = cluster
+            source.clusterRadius = clusterRadius
+            source.clusterMaxZoom = 19
             try style.addSource(source, id: sourceId)
 
             // Add the correct backing layer for this annotation type
